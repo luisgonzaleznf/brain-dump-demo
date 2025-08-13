@@ -271,35 +271,74 @@ export default function App() {
                 {messages.length === 0 ? (
                   <div className="flex flex-col items-center pt-20">
                     <h1 className="text-5xl font-extrabold text-slate-800 text-center">What's on your mind?</h1>
-                    <div className="mt-20">
-                      <span className="text-4xl text-slate-400 animate-pulse">|</span>
+                    <div className="mt-16 px-6 relative w-full max-w-md">
+                      <textarea
+                        value={inputText}
+                        onChange={(e) => setInputText(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder=""
+                        autoFocus
+                        className="text-2xl font-semibold text-slate-800 bg-transparent outline-none border-none appearance-none resize-none w-full text-center overflow-hidden"
+                        style={{ 
+                          caretColor: 'transparent',
+                          color: inputText ? '#1e293b' : 'transparent',
+                          minHeight: '200px',
+                          lineHeight: '1.3',
+                          overflow: 'hidden'
+                        }}
+                        rows="5"
+                      />
+                      {!inputText && (
+                        <span className="text-2xl font-light text-slate-400 animate-pulse absolute top-0 left-1/2 -translate-x-1/2">|</span>
+                      )}
                     </div>
                   </div>
                 ) : (
-                  <div ref={chatListRef} className="space-y-4">
-                    {messages.map((msg, idx) => (
-                      <div
-                        key={idx}
-                        className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                      >
+                  <div className="flex flex-col h-full">
+                    <div ref={chatListRef} className="flex-1 overflow-y-auto space-y-4 pb-4">
+                      {messages.map((msg, idx) => (
                         <div
-                          className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                            msg.role === 'user'
-                              ? 'bg-black text-white'
-                              : 'bg-slate-100 text-slate-900'
-                          }`}
+                          key={idx}
+                          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                         >
-                          {msg.content}
+                          <div
+                            className={`max-w-[80%] rounded-2xl px-4 py-3 text-base ${
+                              msg.role === 'user'
+                                ? 'bg-black text-white'
+                                : 'bg-slate-100 text-slate-900'
+                            }`}
+                          >
+                            {msg.content}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                    {isSending && (
-                      <div className="flex justify-start">
-                        <div className="bg-slate-100 text-slate-500 rounded-2xl px-4 py-3">
-                          <span className="inline-block animate-pulse">thinking...</span>
+                      ))}
+                      {isSending && (
+                        <div className="flex justify-start">
+                          <div className="bg-slate-100 text-slate-500 rounded-2xl px-4 py-3">
+                            <span className="inline-block animate-pulse">thinking...</span>
+                          </div>
                         </div>
+                      )}
+                    </div>
+                    <div className="border-t border-slate-200 pt-3 mt-auto">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={inputText}
+                          onChange={(e) => setInputText(e.target.value)}
+                          onKeyDown={handleKeyDown}
+                          placeholder="Type a message..."
+                          className="flex-1 px-4 py-2 rounded-full bg-slate-100 text-base outline-none"
+                        />
+                        <button
+                          onClick={sendMessage}
+                          disabled={!inputText.trim() || isSending}
+                          className="p-2 rounded-full bg-black text-white disabled:opacity-50"
+                        >
+                          <ChevronRight className="h-5 w-5" />
+                        </button>
                       </div>
-                    )}
+                    </div>
                   </div>
                 )}
               </div>
