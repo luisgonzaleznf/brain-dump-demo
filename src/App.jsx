@@ -287,7 +287,7 @@ export default function App() {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 p-6 overflow-y-auto">
+      <div className="flex-1 p-6 pb-24 overflow-y-auto">
         <div className="text-gray-400 text-sm mb-4">Today</div>
         
         {/* Early Access Message */}
@@ -506,8 +506,8 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Input area - Fixed position above navigation */}
-      <div className="absolute bottom-24 left-0 right-0 bg-white border-t border-gray-200 p-4 z-10">
+      {/* Input area - Fixed position at bottom */}
+      <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 pb-8 z-10">
         <div className="flex items-center gap-2">
           <input
             type="text"
@@ -527,38 +527,6 @@ export default function App() {
           </button>
         </div>
       </div>
-
-      {/* Bottom Navigation */}
-      <nav className="absolute bottom-0 left-0 right-0 border-t border-slate-200 bg-white/95 px-6 pb-8 pt-3 backdrop-blur">
-        <div className="flex items-center justify-between">
-          <button 
-            onClick={() => setCurrentScreen('home')}
-            className="rounded-2xl p-3"
-          >
-            <Home className="h-6 w-6 text-slate-900" />
-          </button>
-
-          <button 
-            className="p-3"
-            onClick={() => setCurrentScreen('mind')}
-          >
-            <Send className="h-6 w-6 text-slate-500" />
-          </button>
-
-          <button 
-            className="p-3"
-            onClick={() => setCurrentScreen('addTask')}
-          >
-            <ListChecks className="h-6 w-6 text-slate-500" />
-          </button>
-
-          <button className="grid h-9 w-9 place-items-center rounded-full bg-slate-200 text-[13px] font-bold text-slate-700">
-            LG
-          </button>
-        </div>
-
-        <div className="pointer-events-none mx-auto mt-4 h-1.5 w-28 rounded-full bg-slate-300" />
-      </nav>
     </motion.div>
   );
 
