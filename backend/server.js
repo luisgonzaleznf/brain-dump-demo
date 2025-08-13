@@ -56,6 +56,28 @@ app.put('/api/tasks/:id/state', (req, res) => {
   }
 });
 
+app.post('/api/chat', async (req, res) => {
+  const { input, history } = req.body;
+  
+  // Simple response logic - you can enhance this with AI integration later
+  let reply = '';
+  
+  const lowerInput = input.toLowerCase();
+  
+  if (lowerInput.includes('task') || lowerInput.includes('todo')) {
+    reply = "I can help you organize that into a task. What would you like to call it, and when do you need it done?";
+  } else if (lowerInput.includes('help')) {
+    reply = "I'm here to help you brain dump your thoughts and turn them into actionable tasks. Just tell me what's on your mind!";
+  } else if (lowerInput.includes('stressed') || lowerInput.includes('overwhelmed')) {
+    reply = "Let's break things down into smaller, manageable pieces. What's the most pressing thing on your mind right now?";
+  } else {
+    // Echo back with helpful prompting
+    reply = `I understand you're thinking about "${input}". Would you like to turn this into a task, or tell me more about it?`;
+  }
+  
+  res.json({ reply });
+});
+
 app.listen(port, () => {
   console.log(`Backend server running at http://localhost:${port}`);
 });
