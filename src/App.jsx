@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Home, Send, ListChecks, Plus, Mic, MicOff, ArrowLeft, Calendar, Zap, Lightbulb, Target, Stethoscope, ChevronRight } from 'lucide-react';
+import { Home, Send, ListChecks, Plus, Mic, MicOff, ArrowLeft, Calendar, Zap, Lightbulb, Target, Stethoscope, ChevronRight, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function App() {
@@ -14,6 +14,12 @@ export default function App() {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [showGameplan, setShowGameplan] = useState(false);
+  const [credits, setCredits] = useState(62);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [showTooltip, setShowTooltip] = useState(null);
   const recognitionRef = useRef(null);
   const chatListRef = useRef(null);
   const apiUrl = 'http://localhost:3001/api';
@@ -153,16 +159,40 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           input: userMessage.content, 
-          history: messages 
+          history: messages,
+          sessionId: sessionId 
         })
       });
       
       if (!response.ok) throw new Error('Chat API unavailable');
       
       const data = await response.json();
+      
+      // Store session ID if provided
+      if (data.sessionId && !sessionId) {
+        setSessionId(data.sessionId);
+      }
+      
+      // Show task creation notification if task was created
+      let messageContent = data.reply || 'I understand. How can I help you further?';
+      if (data.taskCreated) {
+        // If it's an appointment cancellation, navigate to task detail with gameplan
+        if (data.taskType === 'appointment_cancellation' && data.showGameplan) {
+          setSelectedTask(data.taskCreated);
+          setShowGameplan(true);
+          setCurrentScreen('taskDetail');
+        } else {
+          messageContent += `\n\n✅ Task created: "${data.taskCreated.title}"`;
+        }
+        // Reload tasks to show the new one
+        loadTasks();
+      }
+      
       const assistantMessage = { 
         role: 'assistant', 
-        content: data.reply || 'I understand. How can I help you further?' 
+        content: messageContent,
+        scenario: data.scenario,
+        stage: data.stage
       };
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
@@ -177,13 +207,280 @@ export default function App() {
   };
 
   const handleKeyDown = (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    if (e.key === 'Enter') {
       e.preventDefault();
       sendMessage();
     }
   };
 
   const activeTasks = tasks.filter(t => t.state === 'active');
+
+  const renderTaskDetailScreen = () => (
+    <motion.div
+      key="taskDetail"
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 20 }}
+      transition={{ duration: 0.3 }}
+      className="h-full flex flex-col bg-gray-50"
+    >
+      {/* Header */}
+      <div className="bg-white px-6 pt-6 pb-4 border-b border-gray-200">
+        <div className="flex items-center justify-between mb-4">
+          <button
+            onClick={() => setCurrentScreen('home')}
+            className="p-2 -ml-2 rounded-lg hover:bg-gray-100"
+          >
+            <ArrowLeft className="h-6 w-6" />
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 rounded-full bg-gray-100 text-sm">Feedback</span>
+            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+              <span className="text-white text-sm">✓</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-lg bg-gray-200 flex items-center justify-center">
+            <Calendar className="h-6 w-6 text-gray-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold">{selectedTask?.title || 'Test'}</h2>
+            <p className="text-sm text-gray-500">Active</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="bg-white px-6 py-3 border-b border-gray-200">
+        <div className="flex gap-8">
+          <button className="pb-2 border-b-2 border-black font-semibold">Chat</button>
+          <button className="pb-2 text-gray-400">Summary</button>
+        </div>
+      </div>
+
+      {/* Content Area */}
+      <div className="flex-1 p-6">
+        <div className="text-gray-400 text-sm mb-4">Today</div>
+        
+        {/* Early Access Message */}
+        <div className="bg-white rounded-lg p-4 shadow-sm mb-3">
+          <div className="flex items-start gap-2">
+            <Zap className="h-5 w-5 text-yellow-500 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm">
+                <span className="font-semibold">Early Access:</span> We're excited to introduce our new tech! AI gets the ball rolling, so a human can jump in to execute. Have feedback? <a href="#" className="text-blue-600 underline">Share it here</a>, or email{' '}
+                <a href="mailto:feedback@getduckbill.com" className="text-blue-600 underline">feedback@getduckbill.com</a>.
+              </p>
+              <p className="text-xs text-gray-400 mt-1">at 04:05 pm</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Gameplan Button as separate bubble */}
+        <div className="bg-white rounded-lg p-4 shadow-sm">
+          <button
+            onClick={() => setShowGameplan(true)}
+            className={`w-full px-6 py-3 rounded-xl font-semibold transition-all text-center ${
+              selectedPlan === 'urgent' 
+                ? 'bg-purple-500 text-white' 
+                : selectedPlan === 'flexible'
+                ? 'bg-sky-100 text-sky-900'
+                : selectedPlan === 'email'
+                ? 'bg-yellow-50 text-yellow-900 border border-yellow-200'
+                : 'bg-yellow-300 text-gray-900 hover:bg-yellow-400'
+            }`}
+          >
+            {selectedPlan 
+              ? `Gameplan: ${
+                  selectedPlan === 'urgent' ? 'Call - Urgent' :
+                  selectedPlan === 'flexible' ? 'Call - Flexible' :
+                  'Email'
+                }`
+              : 'Gameplan'
+            }
+          </button>
+        </div>
+      </div>
+
+      {/* Gameplan Popup */}
+      <AnimatePresence>
+        {showGameplan && (
+          <motion.div
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 25 }}
+            drag="y"
+            dragConstraints={{ top: 0 }}
+            dragElastic={0.2}
+            onDragEnd={(e, { velocity, offset }) => {
+              if (offset.y > 100 || velocity.y > 500) {
+                setShowGameplan(false);
+              }
+            }}
+            className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl p-6 pb-32"
+            style={{ maxHeight: '75vh' }}
+          >
+            <button 
+              onClick={() => setShowGameplan(false)}
+              className="w-full py-2 mb-2 cursor-grab active:cursor-grabbing"
+            >
+              <div className="w-12 h-1.5 bg-gray-400 rounded-full mx-auto hover:bg-gray-500 transition-colors"></div>
+            </button>
+            
+            <h3 className="text-2xl font-bold mb-2">Gameplan</h3>
+            <p className="text-gray-600 mb-4">Choose how you'd like to handle this:</p>
+            
+            <div className="space-y-3">
+              {/* Call Urgent Option */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    if (credits >= 6) {
+                      setCredits(credits - 6);
+                      setSelectedPlan('urgent');
+                      setShowGameplan(false);
+                      // Handle urgent call action
+                    }
+                  }}
+                  className="w-full p-4 rounded-2xl bg-purple-500 text-white flex items-center justify-between hover:bg-purple-600 transition-colors"
+                >
+                  <div className="text-left flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="font-semibold text-lg">Call - Urgent</div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowTooltip(showTooltip === 'urgent' ? null : 'urgent');
+                        }}
+                        className="p-1 hover:bg-purple-400 rounded-full transition-colors"
+                      >
+                        <Info className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="text-sm opacity-90">Complete within 2 hours</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-lg">6 credits</div>
+                  </div>
+                </button>
+                {showTooltip === 'urgent' && (
+                  <div className="absolute left-0 right-0 -top-20 mx-2 p-3 bg-gray-900 text-white text-sm rounded-lg z-10">
+                    <div className="relative">
+                      We'll call up to 7 times and handle up to 2 follow-up calls if we need additional info from you.
+                      <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Call Flexible Option */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    if (credits >= 2) {
+                      setCredits(credits - 2);
+                      setSelectedPlan('flexible');
+                      setShowGameplan(false);
+                      // Handle flexible call action
+                    }
+                  }}
+                  className="w-full p-4 rounded-2xl bg-sky-100 text-sky-900 flex items-center justify-between hover:bg-sky-200 transition-colors"
+                >
+                  <div className="text-left flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="font-semibold text-lg">Call - Flexible</div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowTooltip(showTooltip === 'flexible' ? null : 'flexible');
+                        }}
+                        className="p-1 hover:bg-sky-200 rounded-full transition-colors"
+                      >
+                        <Info className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="text-sm">Complete within 3 working days</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-lg">2 credits</div>
+                  </div>
+                </button>
+                {showTooltip === 'flexible' && (
+                  <div className="absolute left-0 right-0 -top-20 mx-2 p-3 bg-gray-900 text-white text-sm rounded-lg z-10">
+                    <div className="relative">
+                      We'll make multiple call attempts over 3 days and handle follow-ups if needed to ensure completion.
+                      <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Email Option */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setSelectedPlan('email');
+                    setShowGameplan(false);
+                    // Handle email action
+                  }}
+                  className="w-full p-4 rounded-2xl bg-yellow-50 text-yellow-900 flex items-center justify-between hover:bg-yellow-100 transition-colors"
+                >
+                  <div className="text-left flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="font-semibold text-lg">Email</div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowTooltip(showTooltip === 'email' ? null : 'email');
+                        }}
+                        className="p-1 hover:bg-yellow-100 rounded-full transition-colors"
+                      >
+                        <Info className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="text-sm">Send automated email</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-lg text-green-600">Free</div>
+                  </div>
+                </button>
+                {showTooltip === 'email' && (
+                  <div className="absolute left-0 right-0 -top-20 mx-2 p-3 bg-gray-900 text-white text-sm rounded-lg z-10">
+                    <div className="relative">
+                      Our trusted AI assistant Billy will handle this entire email thread for you automatically.
+                      <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Input area */}
+      <div className="bg-white border-t border-gray-200 p-4">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="What is it?"
+            className="flex-1 px-4 py-2 rounded-full bg-gray-100 outline-none"
+          />
+          <button className="p-2">
+            <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
 
   return (
     <div className="min-h-screen w-full bg-neutral-100 p-6 md:grid md:place-items-center">
@@ -202,7 +499,7 @@ export default function App() {
                 <div className="flex items-center justify-between">
                   <div className="text-[32px] font-extrabold leading-none tracking-tight text-slate-900 lowercase">duckbill</div>
                   <button className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-800 shadow-inner">
-                    62 credits
+                    {credits} credits
                   </button>
                 </div>
 
@@ -245,6 +542,8 @@ export default function App() {
                 <Plus className="h-8 w-8" />
               </motion.button>
             </motion.div>
+          ) : currentScreen === 'taskDetail' ? (
+            renderTaskDetailScreen()
           ) : currentScreen === 'mind' ? (
             <motion.div
               key="mind"

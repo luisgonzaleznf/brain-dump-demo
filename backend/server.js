@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { TaskManager } from './taskManager.js';
+import ScenarioManager from './scenarioManager.js';
 
 const app = express();
 const port = 3001;
@@ -9,6 +10,7 @@ app.use(cors());
 app.use(express.json());
 
 const taskManager = new TaskManager();
+const scenarioManager = new ScenarioManager();
 
 app.get('/api/tasks', (req, res) => {
   res.json(taskManager.getAllTasks());
@@ -57,25 +59,42 @@ app.put('/api/tasks/:id/state', (req, res) => {
 });
 
 app.post('/api/chat', async (req, res) => {
-  const { input, history } = req.body;
+  const { input, history, sessionId } = req.body;
   
-  // Simple response logic - you can enhance this with AI integration later
-  let reply = '';
+  // Generate session ID if not provided
+  const session = sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
-  const lowerInput = input.toLowerCase();
+  // Process message through scenario manager
+  const result = scenarioManager.processMessage(session, input, history);
   
-  if (lowerInput.includes('task') || lowerInput.includes('todo')) {
-    reply = "I can help you organize that into a task. What would you like to call it, and when do you need it done?";
-  } else if (lowerInput.includes('help')) {
-    reply = "I'm here to help you brain dump your thoughts and turn them into actionable tasks. Just tell me what's on your mind!";
-  } else if (lowerInput.includes('stressed') || lowerInput.includes('overwhelmed')) {
-    reply = "Let's break things down into smaller, manageable pieces. What's the most pressing thing on your mind right now?";
-  } else {
-    // Echo back with helpful prompting
-    reply = `I understand you're thinking about "${input}". Would you like to turn this into a task, or tell me more about it?`;
+  // If scenario indicates task creation, create the task
+  if (result.createTask && result.taskData) {
+    const task = taskManager.createTask({
+      title: result.taskData.title,
+      description: result.taskData.description,
+      status: 'Created from brain dump',
+      state: 'active',
+      icon: '🧠',
+      priority: result.taskData.priority,
+      deadline: result.taskData.deadline
+    });
+    
+    // Add task info to response
+    result.taskCreated = {
+      id: task.id,
+      title: task.title
+    };
   }
   
-  res.json({ reply });
+  res.json({ 
+    reply: result.reply,
+    sessionId: session,
+    scenario: result.scenario,
+    stage: result.stage,
+    taskCreated: result.taskCreated || null,
+    taskType: result.taskType || null,
+    showGameplan: result.showGameplan || false
+  });
 });
 
 app.listen(port, () => {
