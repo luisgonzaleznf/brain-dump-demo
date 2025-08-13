@@ -25,6 +25,11 @@ export default function App() {
   const [restaurantOptions, setRestaurantOptions] = useState(null);
   const [showRestaurantOptions, setShowRestaurantOptions] = useState(false);
   const [currentTaskType, setCurrentTaskType] = useState(null);
+  const [destinationOptions, setDestinationOptions] = useState(null);
+  const [showDestinations, setShowDestinations] = useState(false);
+  const [suggestedTasks, setSuggestedTasks] = useState(null);
+  const [showTaskChecklist, setShowTaskChecklist] = useState(false);
+  const [selectedTripTasks, setSelectedTripTasks] = useState([]);
   const recognitionRef = useRef(null);
   const chatListRef = useRef(null);
   const apiUrl = 'http://localhost:3001/api';
@@ -272,6 +277,21 @@ export default function App() {
           setShowRestaurantOptions(true);
         }, data.optionsDelay || 3000);
       }
+      
+      // Handle ski trip destinations display with delay
+      if (data.showDestinations && data.destinationOptions) {
+        setTimeout(() => {
+          setDestinationOptions(data.destinationOptions);
+          setShowDestinations(true);
+        }, data.destinationsDelay || 2000);
+      }
+      
+      // Handle task checklist display
+      if (data.showTaskChecklist && data.suggestedTasks) {
+        setSuggestedTasks(data.suggestedTasks);
+        setShowTaskChecklist(true);
+        setSelectedTripTasks([]); // Reset selections
+      }
     } catch (error) {
       // Fallback response
       setMessages(prev => [...prev, {
@@ -297,7 +317,128 @@ export default function App() {
     setSessionId(null);
     setRestaurantOptions(null);
     setShowRestaurantOptions(false);
+    setDestinationOptions(null);
+    setShowDestinations(false);
+    setSuggestedTasks(null);
+    setShowTaskChecklist(false);
+    setSelectedTripTasks([]);
     setCurrentScreen('mind');
+  };
+
+  const selectDestination = async (destinationName) => {
+    if (!sessionId) return;
+    
+    try {
+      const response = await fetch(`${apiUrl}/select-destination`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          sessionId: sessionId,
+          destinationName: destinationName
+        })
+      });
+      
+      if (!response.ok) throw new Error('Destination selection failed');
+      
+      const data = await response.json();
+      
+      // Hide destinations and show response
+      setShowDestinations(false);
+      setSelectedDestination(destinationName); // Store selected destination
+      
+      // Add assistant message
+      const assistantMessage = { 
+        role: 'assistant', 
+        content: data.reply,
+        scenario: data.scenario,
+        stage: data.stage
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+      
+      // Show task checklist
+      if (data.showTaskChecklist && data.suggestedTasks) {
+        setSuggestedTasks(data.suggestedTasks);
+        setShowTaskChecklist(true);
+        setSelectedTripTasks([]);
+      }
+    } catch (error) {
+      console.error('Failed to select destination:', error);
+    }
+  };
+
+  const [selectedDestination, setSelectedDestination] = useState(null);
+  
+  const toggleTaskSelection = async (task) => {
+    const isSelected = selectedTripTasks.includes(task.title);
+    
+    if (!isSelected && sessionId) {
+      // Add to selected tasks
+      setSelectedTripTasks(prev => [...prev, task.title]);
+      
+      // Immediately create the task
+      try {
+        const response = await fetch(`${apiUrl}/create-single-task`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            task: task,
+            destination: selectedDestination || 'Ski Trip'
+          })
+        });
+        
+        if (response.ok) {
+          // Reload tasks to show the new one
+          loadTasks();
+        }
+      } catch (error) {
+        console.error('Failed to create task:', error);
+      }
+    } else if (isSelected) {
+      // Deselect (optional - you might want to prevent deselection)
+      setSelectedTripTasks(prev => prev.filter(t => t !== task.title));
+    }
+  };
+
+  const confirmTaskSelection = async () => {
+    if (!sessionId || selectedTripTasks.length === 0) return;
+    
+    try {
+      const selectedTaskObjects = suggestedTasks.filter(task => 
+        selectedTripTasks.includes(task.title)
+      );
+      
+      const response = await fetch(`${apiUrl}/select-trip-tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          sessionId: sessionId,
+          selectedTasks: selectedTaskObjects
+        })
+      });
+      
+      if (!response.ok) throw new Error('Task creation failed');
+      
+      const data = await response.json();
+      
+      // Hide task checklist
+      setShowTaskChecklist(false);
+      setSuggestedTasks(null);
+      setSelectedTripTasks([]);
+      
+      // Add completion message
+      const assistantMessage = { 
+        role: 'assistant', 
+        content: data.reply,
+        scenario: data.scenario,
+        stage: data.stage
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+      
+      // Reload tasks to show new ones
+      loadTasks();
+    } catch (error) {
+      console.error('Failed to create tasks:', error);
+    }
   };
 
   const selectRestaurant = async (restaurantName) => {
@@ -429,8 +570,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Gameplan Button as separate bubble - Only show for non-restaurant bookings or after restaurant selection */}
-        {currentTaskType !== 'restaurant_booking' && (
+        {/* Gameplan Button as separate bubble - Only show for non-restaurant bookings and non-ski tasks */}
+        {currentTaskType !== 'restaurant_booking' && currentTaskType !== 'ski_trip_task' && (
           <div className="bg-white rounded-lg p-4 shadow-sm mb-4">
             <button
               onClick={() => setShowGameplan(true)}
@@ -453,6 +594,21 @@ export default function App() {
                 : 'Gameplan'
               }
             </button>
+          </div>
+        )}
+
+        {/* Research/Planning Message for Ski Trip Tasks */}
+        {currentTaskType === 'ski_trip_task' && (
+          <div className="bg-blue-50 rounded-lg p-4 shadow-sm mb-4">
+            <div className="flex items-start gap-3">
+              <div className="text-2xl">🔍</div>
+              <div>
+                <div className="font-semibold text-blue-900 mb-1">Research in Progress</div>
+                <div className="text-sm text-blue-700">
+                  We're gathering options and recommendations for this task. Check back soon for personalized suggestions!
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -848,7 +1004,72 @@ export default function App() {
                           </div>
                         </div>
                       )}
+                      
                     </div>
+                    
+                    {/* Destination Options for Ski Trip */}
+                    {showDestinations && destinationOptions && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="space-y-3 mt-4 px-6"
+                      >
+                        {destinationOptions.map((destination, index) => (
+                          <motion.button
+                            key={index}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.1 }}
+                            onClick={() => selectDestination(destination.name)}
+                            className="w-full p-4 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-left"
+                          >
+                            <div className="font-semibold text-slate-900">{destination.name}</div>
+                            <div className="text-sm text-slate-600 mt-1">{destination.description}</div>
+                            <div className="text-xs text-slate-400 mt-2">{destination.highlights}</div>
+                          </motion.button>
+                        ))}
+                      </motion.div>
+                    )}
+                    
+                    {/* Task Checklist for Ski Trip */}
+                    {showTaskChecklist && suggestedTasks && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-4 px-6 pb-4"
+                      >
+                        <div className="space-y-2">
+                          {suggestedTasks.map((task, index) => (
+                            <motion.button
+                              key={index}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.05 }}
+                              onClick={() => toggleTaskSelection(task)}
+                              className={`w-full p-3 rounded-xl border transition-all text-left flex items-center gap-3 ${
+                                selectedTripTasks.includes(task.title)
+                                  ? 'border-green-500 bg-green-50'
+                                  : 'border-slate-200 bg-white hover:bg-slate-50'
+                              }`}
+                            >
+                              <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-all ${
+                                selectedTripTasks.includes(task.title)
+                                  ? 'border-green-500 bg-green-500'
+                                  : 'border-slate-300'
+                              }`}>
+                                {selectedTripTasks.includes(task.title) && (
+                                  <span className="text-white text-sm">✓</span>
+                                )}
+                              </div>
+                              <span className="text-lg mr-2">{task.icon}</span>
+                              <span className="flex-1 text-slate-900">{task.title}</span>
+                            </motion.button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                    
+                    {/* Input field at bottom - always visible */}
                     <div className="border-t border-slate-200 pt-3 mt-auto">
                       <div className="flex items-center gap-2">
                         <input
@@ -870,19 +1091,6 @@ export default function App() {
                     </div>
                   </div>
                 )}
-              </div>
-
-              <div className="flex justify-end px-6 py-6 pb-32">
-                <button
-                  onClick={isRecording ? stopRecording : startRecording}
-                  className={`p-5 rounded-full transition-all transform ${
-                    isRecording
-                      ? 'bg-red-500 text-white scale-110'
-                      : 'bg-yellow-200 text-black hover:bg-yellow-300 hover:scale-105 border-2 border-black'
-                  }`}
-                >
-                  {isRecording ? <MicOff className="h-7 w-7" /> : <Mic className="h-7 w-7" />}
-                </button>
               </div>
             </motion.div>
           ) : (
@@ -974,33 +1182,36 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        <nav className="absolute bottom-0 left-0 right-0 border-t border-slate-200 bg-white/95 px-6 pb-8 pt-3 backdrop-blur">
-          <div className="flex items-center justify-between">
-            <div className="rounded-2xl bg-slate-100 p-3">
-              <Home className="h-6 w-6 text-slate-900" />
+        {/* Bottom Navigation - Only show on home screen */}
+        {currentScreen === 'home' && (
+          <nav className="absolute bottom-0 left-0 right-0 border-t border-slate-200 bg-white/95 px-6 pb-8 pt-3 backdrop-blur">
+            <div className="flex items-center justify-between">
+              <div className="rounded-2xl bg-slate-100 p-3">
+                <Home className="h-6 w-6 text-slate-900" />
+              </div>
+
+              <button 
+                className="p-3"
+                onClick={() => setCurrentScreen('mind')}
+              >
+                <Send className="h-6 w-6 text-slate-500" />
+              </button>
+
+              <button 
+                className="p-3"
+                onClick={() => setCurrentScreen('addTask')}
+              >
+                <ListChecks className="h-6 w-6 text-slate-500" />
+              </button>
+
+              <button className="grid h-9 w-9 place-items-center rounded-full bg-slate-200 text-[13px] font-bold text-slate-700">
+                LG
+              </button>
             </div>
 
-            <button 
-              className="p-3"
-              onClick={() => setCurrentScreen('mind')}
-            >
-              <Send className="h-6 w-6 text-slate-500" />
-            </button>
-
-            <button 
-              className="p-3"
-              onClick={() => setCurrentScreen('addTask')}
-            >
-              <ListChecks className="h-6 w-6 text-slate-500" />
-            </button>
-
-            <button className="grid h-9 w-9 place-items-center rounded-full bg-slate-200 text-[13px] font-bold text-slate-700">
-              LG
-            </button>
-          </div>
-
-          <div className="pointer-events-none mx-auto mt-4 h-1.5 w-28 rounded-full bg-slate-300" />
-        </nav>
+            <div className="pointer-events-none mx-auto mt-4 h-1.5 w-28 rounded-full bg-slate-300" />
+          </nav>
+        )}
       </div>
     </div>
   );

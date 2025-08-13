@@ -101,7 +101,92 @@ export const scenarios = {
     ]
   },
 
-  // Scenario 3: Original Task Creation Flow (renamed from Scenario 1)
+  // Scenario 3: Ski Trip Planning Flow
+  skiTripPlanning: {
+    name: 'Ski Trip Planning',
+    triggers: ['ski', 'skiing', 'snowboard', 'winter trip', 'mountain', 'slopes'],
+    processInput: (input) => {
+      // Extract trip details from input
+      const monthMatch = input.match(/(?:Jan|Feb|Mar|Dec|January|February|March|December)/i);
+      const daysMatch = input.match(/(\d+)[-\s]?days?/i);
+      const dateMatch = input.match(/late|early|mid/i);
+      
+      return {
+        month: monthMatch ? monthMatch[0] : null,
+        days: daysMatch ? daysMatch[1] : null,
+        timing: dateMatch ? dateMatch[0] : null,
+        fullText: input
+      };
+    },
+    conversations: [
+      {
+        stage: 'initial',
+        response: (details) => {
+          const info = details.processedInput;
+          let response = `Perfect! Let's plan your ski trip`;
+          if (info.days) response += ` for ${info.days} days`;
+          if (info.timing && info.month) response += ` in ${info.timing} ${info.month}`;
+          response += '. Here are some fantastic destinations to consider:';
+          return response;
+        },
+        nextStage: 'destinations',
+        showDestinations: true,
+        destinationsDelay: 2000,
+        destinationOptions: [
+          {
+            name: "St. Moritz, Switzerland",
+            description: "Legendary Alpine luxury & glamour",
+            highlights: "Champagne climate, Michelin dining, glacier skiing"
+          },
+          {
+            name: "Chamonix, France",
+            description: "Birthplace of extreme skiing",
+            highlights: "Mont Blanc views, Vallée Blanche glacier, legendary après-ski"
+          },
+          {
+            name: "Val d'Isère, France",
+            description: "High-altitude paradise with endless terrain",
+            highlights: "300km of pistes, snow-sure, vibrant village life"
+          },
+          {
+            name: "Niseko, Japan",
+            description: "World's best powder snow",
+            highlights: "Light champagne powder, onsens, incredible sushi"
+          },
+          {
+            name: "Verbier, Switzerland",
+            description: "Playground of the international elite",
+            highlights: "Extensive off-piste, exclusive clubs, stunning views"
+          }
+        ]
+      },
+      {
+        stage: 'destinations',
+        response: "Great choice! Here's what we need to plan for your trip:",
+        nextStage: 'tasks',
+        showTaskChecklist: true,
+        suggestedTasks: [
+          { title: "Research and book flights", icon: "✈️" },
+          { title: "Book hotel accommodations", icon: "🏨" },
+          { title: "Reserve ski equipment rentals", icon: "🎿" },
+          { title: "Purchase lift tickets", icon: "🎫" },
+          { title: "Plan activities and dining", icon: "🍽️" },
+          { title: "Arrange airport transfers", icon: "🚗" },
+          { title: "Check weather and pack gear", icon: "🎒" }
+        ]
+      },
+      {
+        stage: 'tasks',
+        response: (details) => {
+          const count = details.selectedTasks ? details.selectedTasks.length : 0;
+          return `Excellent! I've created ${count} task${count !== 1 ? 's' : ''} for your ski trip. Check your home screen to see them all. Have a fantastic trip! 🎿`;
+        },
+        nextStage: 'complete'
+      }
+    ]
+  },
+
+  // Scenario 4: Original Task Creation Flow (renamed from Scenario 1)
   taskCreation: {
     name: 'Task Creation',
     triggers: ['remind', 'todo', 'task', 'need to', 'have to', 'must', 'deadline'],

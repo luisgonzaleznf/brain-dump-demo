@@ -91,7 +91,12 @@ class ScenarioManager {
       showGameplan: response.showGameplan || false,
       showOptions: response.showOptions || false,
       optionsDelay: response.optionsDelay || 0,
-      restaurantOptions: response.restaurantOptions || null
+      restaurantOptions: response.restaurantOptions || null,
+      showDestinations: response.showDestinations || false,
+      destinationOptions: response.destinationOptions || null,
+      destinationsDelay: response.destinationsDelay || 0,
+      showTaskChecklist: response.showTaskChecklist || false,
+      suggestedTasks: response.suggestedTasks || null
     };
   }
 
@@ -263,6 +268,84 @@ class ScenarioManager {
         this.activeConversations.delete(sessionId);
       }
     }
+  }
+
+  // Handle destination selection for ski trip
+  selectDestination(sessionId, destinationName) {
+    const session = this.activeConversations.get(sessionId);
+    if (!session || session.scenario !== 'skiTripPlanning') {
+      return {
+        reply: "I couldn't find your trip planning session.",
+        scenario: null,
+        stage: null
+      };
+    }
+    
+    // Store selected destination in context
+    session.context.selectedDestination = destinationName;
+    
+    // Move to next stage
+    const response = getScenarioResponse('skiTripPlanning', 'destinations');
+    if (!response) {
+      return {
+        reply: "There was an error with your selection.",
+        scenario: session.scenario,
+        stage: session.stage
+      };
+    }
+    
+    // Update session
+    session.stage = response.nextStage;
+    
+    return {
+      reply: response.response,
+      scenario: session.scenario,
+      stage: session.stage,
+      showTaskChecklist: response.showTaskChecklist || false,
+      suggestedTasks: response.suggestedTasks || null
+    };
+  }
+
+  // Handle task selection for ski trip
+  selectTripTasks(sessionId, selectedTasks) {
+    const session = this.activeConversations.get(sessionId);
+    if (!session || session.scenario !== 'skiTripPlanning') {
+      return {
+        reply: "I couldn't find your trip planning session.",
+        scenario: null,
+        stage: null
+      };
+    }
+    
+    // Store selected tasks in context
+    session.context.selectedTasks = selectedTasks;
+    
+    // Move to final stage
+    const response = getScenarioResponse('skiTripPlanning', 'tasks');
+    if (!response) {
+      return {
+        reply: "There was an error creating your tasks.",
+        scenario: session.scenario,
+        stage: session.stage
+      };
+    }
+    
+    // Get response text
+    let replyText = response.response;
+    if (typeof response.response === 'function') {
+      replyText = response.response({ selectedTasks });
+    }
+    
+    // Mark session as complete
+    this.activeConversations.delete(sessionId);
+    
+    return {
+      reply: replyText,
+      scenario: session.scenario,
+      stage: 'complete',
+      tasksToCreate: selectedTasks,
+      selectedDestination: session.context.selectedDestination
+    };
   }
 
   // Handle restaurant selection

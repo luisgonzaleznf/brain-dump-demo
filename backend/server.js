@@ -94,7 +94,12 @@ app.post('/api/chat', async (req, res) => {
     showGameplan: result.showGameplan || false,
     showOptions: result.showOptions || false,
     optionsDelay: result.optionsDelay || 0,
-    restaurantOptions: result.restaurantOptions || null
+    restaurantOptions: result.restaurantOptions || null,
+    showDestinations: result.showDestinations || false,
+    destinationOptions: result.destinationOptions || null,
+    destinationsDelay: result.destinationsDelay || 0,
+    showTaskChecklist: result.showTaskChecklist || false,
+    suggestedTasks: result.suggestedTasks || null
   });
 });
 
@@ -125,6 +130,87 @@ app.post('/api/select-restaurant', async (req, res) => {
     showGameplan: result.showGameplan || false,
     taskType: result.taskType || null,
     selectedTask: selectedTask
+  });
+});
+
+// Handle destination selection for ski trip
+app.post('/api/select-destination', async (req, res) => {
+  const { sessionId, destinationName } = req.body;
+  
+  if (!sessionId || !destinationName) {
+    return res.status(400).json({ error: 'Session ID and destination name are required' });
+  }
+  
+  const result = scenarioManager.selectDestination(sessionId, destinationName);
+  
+  res.json({
+    reply: result.reply,
+    sessionId: sessionId,
+    scenario: result.scenario,
+    stage: result.stage,
+    showTaskChecklist: result.showTaskChecklist || false,
+    suggestedTasks: result.suggestedTasks || null
+  });
+});
+
+// Create a single task for ski trip
+app.post('/api/create-single-task', async (req, res) => {
+  const { task, destination } = req.body;
+  
+  if (!task) {
+    return res.status(400).json({ error: 'Task is required' });
+  }
+  
+  const createdTask = taskManager.createTask({
+    title: `${task.title} - ${destination || 'Ski Trip'}`,
+    description: `Part of your ski trip planning`,
+    status: 'Planning',
+    state: 'active',
+    icon: task.icon || '🎿',
+    priority: 'medium',
+    taskType: 'ski_trip_task',
+    needsResearch: true  // Flag to show research options instead of gameplan
+  });
+  
+  res.json({
+    success: true,
+    task: createdTask
+  });
+});
+
+// Handle task selection for ski trip
+app.post('/api/select-trip-tasks', async (req, res) => {
+  const { sessionId, selectedTasks } = req.body;
+  
+  if (!sessionId || !selectedTasks) {
+    return res.status(400).json({ error: 'Session ID and selected tasks are required' });
+  }
+  
+  const result = scenarioManager.selectTripTasks(sessionId, selectedTasks);
+  
+  // Create the selected tasks
+  const createdTasks = [];
+  if (result.tasksToCreate) {
+    result.tasksToCreate.forEach(taskInfo => {
+      const task = taskManager.createTask({
+        title: `${taskInfo.title} - ${result.selectedDestination || 'Ski Trip'}`,
+        description: `Part of your ski trip planning`,
+        status: 'Created from brain dump',
+        state: 'active',
+        icon: taskInfo.icon || '🎿',
+        priority: 'medium',
+        taskType: 'ski_trip_task'
+      });
+      createdTasks.push(task);
+    });
+  }
+  
+  res.json({
+    reply: result.reply,
+    sessionId: sessionId,
+    scenario: result.scenario,
+    stage: result.stage,
+    createdTasks: createdTasks
   });
 });
 
