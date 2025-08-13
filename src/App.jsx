@@ -995,7 +995,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-6 py-4">
+              <div className="flex-1 overflow-y-auto">
                 {messages.length === 0 ? (
                   <div className="flex flex-col items-center pt-20">
                     <h1 className="text-5xl font-extrabold text-slate-800 text-center">What's on your mind?</h1>
@@ -1023,63 +1023,62 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="flex flex-col h-full">
-                    <div ref={chatListRef} className="flex-1 overflow-y-auto space-y-4 pb-4">
-                      {messages.map((msg, idx) => (
-                        <div
-                          key={idx}
-                          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                        >
+                    <div ref={chatListRef} className="flex-1 overflow-y-auto px-6 pb-4">
+                      <div className="space-y-4 py-4">
+                        {messages.map((msg, idx) => (
                           <div
-                            className={`max-w-[80%] rounded-2xl px-4 py-3 text-base ${
-                              msg.role === 'user'
-                                ? 'bg-black text-white'
-                                : 'bg-slate-100 text-slate-900'
-                            }`}
+                            key={idx}
+                            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                           >
-                            {msg.content}
+                            <div
+                              className={`max-w-[80%] rounded-2xl px-4 py-3 text-base ${
+                                msg.role === 'user'
+                                  ? 'bg-black text-white'
+                                  : 'bg-slate-100 text-slate-900'
+                              }`}
+                            >
+                              {msg.content}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                      {isSending && (
-                        <div className="flex justify-start">
-                          <div className="bg-slate-100 text-slate-500 rounded-2xl px-4 py-3">
-                            <span className="inline-block animate-pulse">thinking...</span>
-                          </div>
-                        </div>
-                      )}
-                      
-                    </div>
-                    
-                    {/* Destination Options for Ski Trip */}
-                    {showDestinations && destinationOptions && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="space-y-3 mt-4 px-6"
-                      >
-                        {destinationOptions.map((destination, index) => (
-                          <motion.button
-                            key={index}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.1 }}
-                            onClick={() => selectDestination(destination.name)}
-                            className="w-full p-4 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-left"
-                          >
-                            <div className="font-semibold text-slate-900">{destination.name}</div>
-                            <div className="text-sm text-slate-600 mt-1">{destination.description}</div>
-                            <div className="text-xs text-slate-400 mt-2">{destination.highlights}</div>
-                          </motion.button>
                         ))}
-                      </motion.div>
-                    )}
-                    
-                    {/* Example Tasks for Onboarding */}
-                    {showExamples && exampleTasks && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mt-4 px-6 pb-4"
+                        {isSending && (
+                          <div className="flex justify-start">
+                            <div className="bg-slate-100 text-slate-500 rounded-2xl px-4 py-3">
+                              <span className="inline-block animate-pulse">thinking...</span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Destination Options for Ski Trip */}
+                        {showDestinations && destinationOptions && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="space-y-3 mt-4"
+                          >
+                            {destinationOptions.map((destination, index) => (
+                              <motion.button
+                                key={index}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: index * 0.1 }}
+                                onClick={() => selectDestination(destination.name)}
+                                className="w-full p-4 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-left"
+                              >
+                                <div className="font-semibold text-slate-900">{destination.name}</div>
+                                <div className="text-sm text-slate-600 mt-1">{destination.description}</div>
+                                <div className="text-xs text-slate-400 mt-2">{destination.highlights}</div>
+                              </motion.button>
+                            ))}
+                          </motion.div>
+                        )}
+                        
+                        {/* Example Tasks for Onboarding */}
+                        {showExamples && exampleTasks && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mt-4 pb-4"
                       >
                         <div className="space-y-2">
                           {exampleTasks.map((task, index) => (
@@ -1112,15 +1111,15 @@ export default function App() {
                             </motion.button>
                           ))}
                         </div>
-                      </motion.div>
-                    )}
-                    
-                    {/* Task Checklist for Ski Trip */}
-                    {showTaskChecklist && suggestedTasks && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mt-4 px-6 pb-4"
+                          </motion.div>
+                        )}
+                        
+                        {/* Task Checklist for Ski Trip */}
+                        {showTaskChecklist && suggestedTasks && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mt-4 pb-4"
                       >
                         <div className="space-y-2">
                           {suggestedTasks.map((task, index) => (
@@ -1149,12 +1148,14 @@ export default function App() {
                               <span className="flex-1 text-slate-900">{task.title}</span>
                             </motion.button>
                           ))}
-                        </div>
-                      </motion.div>
-                    )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </div>
+                    </div>
                     
                     {/* Input field at bottom - always visible */}
-                    <div className="border-t border-slate-200 pt-3 mt-auto">
+                    <div className="border-t border-slate-200 pt-3 px-6 mt-auto">
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
