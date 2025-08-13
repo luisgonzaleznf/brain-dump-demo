@@ -99,7 +99,10 @@ app.post('/api/chat', async (req, res) => {
     destinationOptions: result.destinationOptions || null,
     destinationsDelay: result.destinationsDelay || 0,
     showTaskChecklist: result.showTaskChecklist || false,
-    suggestedTasks: result.suggestedTasks || null
+    suggestedTasks: result.suggestedTasks || null,
+    showExamples: result.showExamples || false,
+    examplesDelay: result.examplesDelay || 0,
+    exampleTasks: result.exampleTasks || null
   });
 });
 
@@ -150,6 +153,30 @@ app.post('/api/select-destination', async (req, res) => {
     stage: result.stage,
     showTaskChecklist: result.showTaskChecklist || false,
     suggestedTasks: result.suggestedTasks || null
+  });
+});
+
+// Create example task from onboarding
+app.post('/api/create-example-task', async (req, res) => {
+  const { task } = req.body;
+  
+  if (!task) {
+    return res.status(400).json({ error: 'Task is required' });
+  }
+  
+  const createdTask = taskManager.createTask({
+    title: task.title,
+    description: `${task.category} task`,
+    status: 'Ready to delegate',
+    state: 'active',
+    icon: task.icon || '📋',
+    priority: 'medium',
+    taskType: 'example_task'
+  });
+  
+  res.json({
+    success: true,
+    task: createdTask
   });
 });
 

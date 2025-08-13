@@ -96,7 +96,10 @@ class ScenarioManager {
       destinationOptions: response.destinationOptions || null,
       destinationsDelay: response.destinationsDelay || 0,
       showTaskChecklist: response.showTaskChecklist || false,
-      suggestedTasks: response.suggestedTasks || null
+      suggestedTasks: response.suggestedTasks || null,
+      showExamples: response.showExamples || false,
+      examplesDelay: response.examplesDelay || 0,
+      exampleTasks: response.exampleTasks || null
     };
   }
 

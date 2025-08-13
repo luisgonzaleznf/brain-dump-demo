@@ -186,7 +186,63 @@ export const scenarios = {
     ]
   },
 
-  // Scenario 4: Original Task Creation Flow (renamed from Scenario 1)
+  // Scenario 4: Onboarding/Help Flow
+  onboarding: {
+    name: 'Onboarding Help',
+    triggers: ['what is this', 'help', 'confused', 'how does', 'what does', 'explain', 'what for', 'purpose'],
+    processInput: (input) => {
+      return {
+        fullText: input
+      };
+    },
+    conversations: [
+      {
+        stage: 'initial',
+        response: () => {
+          return "Great question! Duckbill is your personal task delegation service - think of it as a secretary in your pocket. We handle all those annoying tasks that eat up your time. Simply tell us what you need, and we'll take care of it. Here are some popular tasks our members love to delegate:";
+        },
+        nextStage: 'examples',
+        showExamples: true,
+        examplesDelay: 1500,
+        exampleTasks: [
+          { 
+            title: "Book weekend getaway hotel",
+            icon: "🏨",
+            category: "Travel"
+          },
+          { 
+            title: "Set up monthly flower delivery",
+            icon: "💐",
+            category: "Recurring"
+          },
+          { 
+            title: "Book haircut with senior stylist",
+            icon: "✂️",
+            category: "Appointments"
+          },
+          { 
+            title: "Cancel unused subscriptions",
+            icon: "❌",
+            category: "Admin"
+          }
+        ]
+      },
+      {
+        stage: 'examples',
+        response: (details) => {
+          const count = details.selectedExamples ? details.selectedExamples.length : 0;
+          if (count > 0) {
+            return `Perfect! I've created ${count} task${count !== 1 ? 's' : ''} for you. You can find them on your home screen. Feel free to tell me about any other tasks you need help with!`;
+          } else {
+            return `No problem! Feel free to tell me about any tasks you need help with, or explore the app to see what we can do for you.`;
+          }
+        },
+        nextStage: 'complete'
+      }
+    ]
+  },
+
+  // Scenario 5: Original Task Creation Flow (renamed from Scenario 1)
   taskCreation: {
     name: 'Task Creation',
     triggers: ['remind', 'todo', 'task', 'need to', 'have to', 'must', 'deadline'],

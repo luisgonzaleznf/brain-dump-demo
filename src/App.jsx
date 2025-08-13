@@ -30,6 +30,9 @@ export default function App() {
   const [suggestedTasks, setSuggestedTasks] = useState(null);
   const [showTaskChecklist, setShowTaskChecklist] = useState(false);
   const [selectedTripTasks, setSelectedTripTasks] = useState([]);
+  const [exampleTasks, setExampleTasks] = useState(null);
+  const [showExamples, setShowExamples] = useState(false);
+  const [selectedExamples, setSelectedExamples] = useState([]);
   const recognitionRef = useRef(null);
   const chatListRef = useRef(null);
   const apiUrl = 'http://localhost:3001/api';
@@ -292,6 +295,15 @@ export default function App() {
         setShowTaskChecklist(true);
         setSelectedTripTasks([]); // Reset selections
       }
+      
+      // Handle example tasks display for onboarding
+      if (data.showExamples && data.exampleTasks) {
+        setTimeout(() => {
+          setExampleTasks(data.exampleTasks);
+          setShowExamples(true);
+          setSelectedExamples([]); // Reset selections
+        }, data.examplesDelay || 1500);
+      }
     } catch (error) {
       // Fallback response
       setMessages(prev => [...prev, {
@@ -322,6 +334,9 @@ export default function App() {
     setSuggestedTasks(null);
     setShowTaskChecklist(false);
     setSelectedTripTasks([]);
+    setExampleTasks(null);
+    setShowExamples(false);
+    setSelectedExamples([]);
     setCurrentScreen('mind');
   };
 
@@ -367,6 +382,34 @@ export default function App() {
   };
 
   const [selectedDestination, setSelectedDestination] = useState(null);
+  
+  const toggleExampleTask = async (task) => {
+    const isSelected = selectedExamples.includes(task.title);
+    
+    if (!isSelected) {
+      // Add to selected examples
+      setSelectedExamples(prev => [...prev, task.title]);
+      
+      // Immediately create the task
+      try {
+        const response = await fetch(`${apiUrl}/create-example-task`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ task })
+        });
+        
+        if (response.ok) {
+          // Reload tasks to show the new one
+          loadTasks();
+        }
+      } catch (error) {
+        console.error('Failed to create example task:', error);
+      }
+    } else {
+      // Deselect
+      setSelectedExamples(prev => prev.filter(t => t !== task.title));
+    }
+  };
   
   const toggleTaskSelection = async (task) => {
     const isSelected = selectedTripTasks.includes(task.title);
@@ -1028,6 +1071,47 @@ export default function App() {
                             <div className="text-xs text-slate-400 mt-2">{destination.highlights}</div>
                           </motion.button>
                         ))}
+                      </motion.div>
+                    )}
+                    
+                    {/* Example Tasks for Onboarding */}
+                    {showExamples && exampleTasks && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-4 px-6 pb-4"
+                      >
+                        <div className="space-y-2">
+                          {exampleTasks.map((task, index) => (
+                            <motion.button
+                              key={index}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.05 }}
+                              onClick={() => toggleExampleTask(task)}
+                              className={`w-full p-3 rounded-xl border transition-all text-left flex items-center gap-3 ${
+                                selectedExamples.includes(task.title)
+                                  ? 'border-green-500 bg-green-50'
+                                  : 'border-slate-200 bg-white hover:bg-slate-50'
+                              }`}
+                            >
+                              <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-all ${
+                                selectedExamples.includes(task.title)
+                                  ? 'border-green-500 bg-green-500'
+                                  : 'border-slate-300'
+                              }`}>
+                                {selectedExamples.includes(task.title) && (
+                                  <span className="text-white text-sm">✓</span>
+                                )}
+                              </div>
+                              <span className="text-lg mr-2">{task.icon}</span>
+                              <div className="flex-1">
+                                <div className="text-slate-900">{task.title}</div>
+                                <div className="text-xs text-slate-500 mt-0.5">{task.category}</div>
+                              </div>
+                            </motion.button>
+                          ))}
+                        </div>
                       </motion.div>
                     )}
                     
