@@ -33,7 +33,75 @@ export const scenarios = {
     ]
   },
 
-  // Scenario 2: Original Task Creation Flow (renamed from Scenario 1)
+  // Scenario 2: Restaurant Booking Flow
+  restaurantBooking: {
+    name: 'Restaurant Booking',
+    triggers: ['book', 'restaurant', 'reservation', 'table', 'dinner', 'lunch', 'eat', 'dining'],
+    processInput: (input) => {
+      // Extract booking details from input
+      const peopleMatch = input.match(/(\d+)[-–—]\s*(\d+)\s+people/i) || input.match(/(\d+)\s+people/i);
+      const timeMatch = input.match(/(\d{1,2}):?(\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)/i) || input.match(/(\d{1,2})\s*(?:a\.?m\.?|p\.?m\.?)/i);
+      const tonightMatch = input.match(/tonight|today|this evening/i);
+      const vegMatch = input.match(/veg|vegetarian|vegan/i);
+      const locationMatch = input.match(/downtown|uptown|midtown|[A-Z][a-z]+\s+(?:area|district|neighborhood)/i);
+      
+      return {
+        people: peopleMatch ? (peopleMatch[2] ? `${peopleMatch[1]}–${peopleMatch[2]}` : peopleMatch[1]) : null,
+        time: timeMatch ? timeMatch[0] : null,
+        when: tonightMatch ? tonightMatch[0] : null,
+        dietary: vegMatch ? 'vegetarian-friendly' : null,
+        location: locationMatch ? locationMatch[0] : null,
+        fullText: input
+      };
+    },
+    conversations: [
+      {
+        stage: 'initial',
+        response: (details) => {
+          const info = details.processedInput;
+          let response = `I'll help you book a restaurant`;
+          if (info.location) response += ` ${info.location}`;
+          if (info.people) response += ` for ${info.people} people`;
+          if (info.when && info.time) response += ` ${info.when} at ${info.time}`;
+          if (info.dietary) response += ` (${info.dietary})`;
+          response += '. Let me find some options for you.';
+          return response;
+        },
+        nextStage: 'options',
+        createTask: true,
+        taskType: 'restaurant_booking',
+        showOptions: true,
+        optionsDelay: 3000,
+        restaurantOptions: [
+          {
+            name: "Olive Garden Downtown",
+            cuisine: "Italian",
+            note: "Great vegetarian options, no online reservations"
+          },
+          {
+            name: "The Green Table",
+            cuisine: "Farm-to-table",
+            note: "Fully vegetarian menu, call-only reservations"
+          },
+          {
+            name: "Bistro Central",
+            cuisine: "Contemporary American",
+            note: "Excellent veg options, phone reservations only"
+          }
+        ]
+      },
+      {
+        stage: 'selected',
+        response: (details) => {
+          return `Perfect choice! I'll handle the reservation at ${details.selectedRestaurant}. Since they don't accept online reservations, I'll need to call them directly.`;
+        },
+        nextStage: 'complete',
+        showGameplan: true
+      }
+    ]
+  },
+
+  // Scenario 3: Original Task Creation Flow (renamed from Scenario 1)
   taskCreation: {
     name: 'Task Creation',
     triggers: ['remind', 'todo', 'task', 'need to', 'have to', 'must', 'deadline'],

@@ -88,7 +88,10 @@ class ScenarioManager {
       createTask: response.createTask || false,
       taskData: taskData,
       taskType: response.taskType,
-      showGameplan: response.showGameplan || false
+      showGameplan: response.showGameplan || false,
+      showOptions: response.showOptions || false,
+      optionsDelay: response.optionsDelay || 0,
+      restaurantOptions: response.restaurantOptions || null
     };
   }
 
@@ -133,12 +136,20 @@ class ScenarioManager {
       taskData = this.createTaskFromContext(session.context);
     }
     
+    // Get response text (may be a function)
+    let replyText = response.response;
+    if (typeof response.response === 'function') {
+      replyText = response.response(session.context);
+    }
+    
     return {
-      reply: response.response,
+      reply: replyText,
       scenario: session.scenario,
       stage: session.stage,
       createTask: response.createTask || false,
-      taskData: taskData
+      taskData: taskData,
+      showGameplan: response.showGameplan || false,
+      restaurantOptions: response.restaurantOptions || null
     };
   }
 
@@ -157,6 +168,25 @@ class ScenarioManager {
         source: 'brain_dump',
         taskType: 'appointment_cancellation',
         appointmentDetails: info
+      };
+    }
+    
+    // Special handling for restaurant booking
+    if (context.taskType === 'restaurant_booking' && context.processedInput) {
+      const info = context.processedInput;
+      let title = 'Book restaurant';
+      if (info.location) title += ` ${info.location}`;
+      if (info.people) title += ` for ${info.people} people`;
+      if (info.when && info.time) title += ` ${info.when} at ${info.time}`;
+      
+      return {
+        title: title,
+        description: context.initialInput,
+        priority: 'medium',
+        deadline: info.when === 'tonight' ? new Date().toISOString() : null,
+        source: 'brain_dump',
+        taskType: 'restaurant_booking',
+        bookingDetails: info
       };
     }
     
@@ -233,6 +263,51 @@ class ScenarioManager {
         this.activeConversations.delete(sessionId);
       }
     }
+  }
+
+  // Handle restaurant selection
+  selectRestaurant(sessionId, restaurantName) {
+    const session = this.activeConversations.get(sessionId);
+    if (!session || session.scenario !== 'restaurantBooking') {
+      return {
+        reply: "I couldn't find your restaurant booking session.",
+        scenario: null,
+        stage: null
+      };
+    }
+    
+    // Store selected restaurant in context
+    session.context.selectedRestaurant = restaurantName;
+    
+    // Move to selected stage
+    const response = getScenarioResponse('restaurantBooking', 'selected');
+    if (!response) {
+      return {
+        reply: "There was an error with your selection.",
+        scenario: session.scenario,
+        stage: session.stage
+      };
+    }
+    
+    // Get response text
+    let replyText = response.response;
+    if (typeof response.response === 'function') {
+      replyText = response.response({ selectedRestaurant: restaurantName });
+    }
+    
+    // Update session
+    session.stage = response.nextStage;
+    if (response.nextStage === 'complete') {
+      this.activeConversations.delete(sessionId);
+    }
+    
+    return {
+      reply: replyText,
+      scenario: session.scenario,
+      stage: session.stage,
+      showGameplan: response.showGameplan || false,
+      taskType: 'restaurant_booking'
+    };
   }
 
   // Get session info (for debugging)

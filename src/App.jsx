@@ -18,10 +18,13 @@ export default function App() {
   const [selectedTask, setSelectedTask] = useState(null);
   const [showGameplan, setShowGameplan] = useState(false);
   const [credits, setCredits] = useState(62);
-  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [selectedPlans, setSelectedPlans] = useState({}); // Map of taskId -> selected plan
   const [showTooltip, setShowTooltip] = useState(null);
-  const [taskMessages, setTaskMessages] = useState([]);
+  const [taskMessages, setTaskMessages] = useState({}); // Map of taskId -> messages array
   const [taskInputText, setTaskInputText] = useState('');
+  const [restaurantOptions, setRestaurantOptions] = useState(null);
+  const [showRestaurantOptions, setShowRestaurantOptions] = useState(false);
+  const [currentTaskType, setCurrentTaskType] = useState(null);
   const recognitionRef = useRef(null);
   const chatListRef = useRef(null);
   const apiUrl = 'http://localhost:3001/api';
@@ -79,11 +82,16 @@ export default function App() {
 
   const handleTaskClick = (task) => {
     setSelectedTask(task);
+    setCurrentTaskType(task.taskType || null);
+    // Initialize messages for this task if not already present
+    if (!taskMessages[task.id]) {
+      setTaskMessages(prev => ({...prev, [task.id]: []}));
+    }
     setCurrentScreen('taskDetail');
   };
 
   const sendTaskMessage = () => {
-    if (!taskInputText.trim()) return;
+    if (!taskInputText.trim() || !selectedTask) return;
     
     const newMessage = {
       id: Date.now(),
@@ -92,7 +100,10 @@ export default function App() {
       timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
     };
     
-    setTaskMessages(prev => [...prev, newMessage]);
+    setTaskMessages(prev => ({
+      ...prev,
+      [selectedTask.id]: [...(prev[selectedTask.id] || []), newMessage]
+    }));
     setTaskInputText('');
     
     // Simulate a response after a short delay
@@ -103,7 +114,10 @@ export default function App() {
         content: 'Got it! I\'ll help you with that.',
         timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
       };
-      setTaskMessages(prev => [...prev, response]);
+      setTaskMessages(prev => ({
+        ...prev,
+        [selectedTask.id]: [...(prev[selectedTask.id] || []), response]
+      }));
     }, 1000);
   };
 
@@ -204,9 +218,38 @@ export default function App() {
       if (data.taskCreated) {
         // If it's an appointment cancellation, navigate to task detail with gameplan
         if (data.taskType === 'appointment_cancellation' && data.showGameplan) {
-          setSelectedTask(data.taskCreated);
+          const task = data.taskCreated;
+          setSelectedTask(task);
+          setCurrentTaskType('appointment_cancellation');
+          // Initialize empty chat for this task
+          setTaskMessages(prev => ({...prev, [task.id]: []}));
           setShowGameplan(true);
           setCurrentScreen('taskDetail');
+        } 
+        // If it's a restaurant booking, navigate to task detail immediately
+        else if (data.taskType === 'restaurant_booking') {
+          const task = data.taskCreated;
+          setSelectedTask(task);
+          setCurrentTaskType('restaurant_booking');
+          setCurrentScreen('taskDetail');
+          // Clear brain dump messages and add initial message to task chat
+          setMessages([]);
+          setTaskMessages(prev => ({
+            ...prev,
+            [task.id]: [{
+              id: Date.now(),
+              role: 'assistant',
+              content: data.reply,
+              timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            }]
+          }));
+          // Show restaurant options after delay in task detail view
+          if (data.showOptions && data.restaurantOptions) {
+            setTimeout(() => {
+              setRestaurantOptions(data.restaurantOptions);
+              setShowRestaurantOptions(true);
+            }, data.optionsDelay || 3000);
+          }
         } else {
           messageContent += `\n\n✅ Task created: "${data.taskCreated.title}"`;
         }
@@ -221,6 +264,14 @@ export default function App() {
         stage: data.stage
       };
       setMessages(prev => [...prev, assistantMessage]);
+      
+      // Handle restaurant options display
+      if (data.showOptions && data.restaurantOptions) {
+        setTimeout(() => {
+          setRestaurantOptions(data.restaurantOptions);
+          setShowRestaurantOptions(true);
+        }, data.optionsDelay || 3000);
+      }
     } catch (error) {
       // Fallback response
       setMessages(prev => [...prev, {
@@ -244,7 +295,73 @@ export default function App() {
     setMessages([]);
     setInputText('');
     setSessionId(null);
+    setRestaurantOptions(null);
+    setShowRestaurantOptions(false);
     setCurrentScreen('mind');
+  };
+
+  const selectRestaurant = async (restaurantName) => {
+    if (!sessionId || !selectedTask) return;
+    
+    try {
+      const response = await fetch(`${apiUrl}/select-restaurant`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          sessionId: sessionId,
+          restaurantName: restaurantName
+        })
+      });
+      
+      if (!response.ok) throw new Error('Restaurant selection failed');
+      
+      const data = await response.json();
+      
+      // Hide restaurant options
+      setShowRestaurantOptions(false);
+      setRestaurantOptions(null);
+      
+      // Add assistant message to task chat (since we're already in task detail)
+      const assistantMessage = { 
+        id: Date.now(),
+        role: 'assistant', 
+        content: data.reply,
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      };
+      setTaskMessages(prev => ({
+        ...prev,
+        [selectedTask.id]: [...(prev[selectedTask.id] || []), assistantMessage]
+      }));
+      
+      // Show gameplan if needed - add gameplan button after a brief delay
+      if (data.showGameplan && data.taskType === 'restaurant_booking') {
+        setTimeout(() => {
+          const gameplanMessage = {
+            id: Date.now() + 1,
+            role: 'gameplan',
+            content: 'Ready to proceed with your reservation?',
+            timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+          };
+          setTaskMessages(prev => ({
+            ...prev,
+            [selectedTask.id]: [...(prev[selectedTask.id] || []), gameplanMessage]
+          }));
+        }, 1000);
+        // Reload tasks to refresh the home screen
+        loadTasks();
+      }
+    } catch (error) {
+      console.error('Failed to select restaurant:', error);
+      setTaskMessages(prev => ({
+        ...prev,
+        [selectedTask.id]: [...(prev[selectedTask.id] || []), {
+          id: Date.now(),
+          role: 'assistant',
+          content: 'Sorry, there was an error processing your selection. Please try again.',
+          timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        }]
+      }));
+    }
   };
 
   const activeTasks = tasks.filter(t => t.state === 'active');
@@ -312,46 +429,99 @@ export default function App() {
           </div>
         </div>
 
-        {/* Gameplan Button as separate bubble */}
-        <div className="bg-white rounded-lg p-4 shadow-sm mb-4">
-          <button
-            onClick={() => setShowGameplan(true)}
-            className={`w-full px-6 py-3 rounded-xl font-semibold transition-all text-center ${
-              selectedPlan === 'urgent' 
-                ? 'bg-purple-500 text-white' 
-                : selectedPlan === 'flexible'
-                ? 'bg-sky-100 text-sky-900'
-                : selectedPlan === 'email'
-                ? 'bg-yellow-50 text-yellow-900 border border-yellow-200'
-                : 'bg-yellow-300 text-gray-900 hover:bg-yellow-400'
-            }`}
-          >
-            {selectedPlan 
-              ? `Gameplan: ${
-                  selectedPlan === 'urgent' ? 'Call - Urgent' :
-                  selectedPlan === 'flexible' ? 'Call - Flexible' :
-                  'Email'
-                }`
-              : 'Gameplan'
-            }
-          </button>
-        </div>
+        {/* Gameplan Button as separate bubble - Only show for non-restaurant bookings or after restaurant selection */}
+        {currentTaskType !== 'restaurant_booking' && (
+          <div className="bg-white rounded-lg p-4 shadow-sm mb-4">
+            <button
+              onClick={() => setShowGameplan(true)}
+              className={`w-full px-6 py-3 rounded-xl font-semibold transition-all text-center ${
+                selectedPlans[selectedTask?.id] === 'urgent' 
+                  ? 'bg-purple-500 text-white' 
+                  : selectedPlans[selectedTask?.id] === 'flexible'
+                  ? 'bg-sky-100 text-sky-900'
+                  : selectedPlans[selectedTask?.id] === 'email'
+                  ? 'bg-yellow-50 text-yellow-900 border border-yellow-200'
+                  : 'bg-yellow-300 text-gray-900 hover:bg-yellow-400'
+              }`}
+            >
+              {selectedPlans[selectedTask?.id] 
+                ? `Gameplan: ${
+                    selectedPlans[selectedTask?.id] === 'urgent' ? 'Call - Urgent' :
+                    selectedPlans[selectedTask?.id] === 'flexible' ? 'Call - Flexible' :
+                    'Email'
+                  }`
+                : 'Gameplan'
+              }
+            </button>
+          </div>
+        )}
 
         {/* Chat Messages */}
-        {taskMessages.map((msg) => (
+        {(taskMessages[selectedTask?.id] || []).map((msg) => (
           <div key={msg.id} className={`mb-3 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-lg p-4 shadow-sm ${
-              msg.role === 'user' 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-white'
-            }`}>
-              <p className="text-sm">{msg.content}</p>
-              <p className={`text-xs mt-1 ${msg.role === 'user' ? 'text-blue-100' : 'text-gray-400'}`}>
-                {msg.timestamp}
-              </p>
-            </div>
+            {msg.role === 'gameplan' ? (
+              // Special gameplan button bubble
+              <div className="w-full">
+                <button
+                  onClick={() => setShowGameplan(true)}
+                  className={`w-full px-6 py-3 rounded-xl font-semibold transition-all text-center shadow-sm ${
+                    selectedPlans[selectedTask?.id] === 'urgent' 
+                      ? 'bg-purple-500 text-white' 
+                      : selectedPlans[selectedTask?.id] === 'flexible'
+                      ? 'bg-sky-100 text-sky-900'
+                      : selectedPlans[selectedTask?.id] === 'email'
+                      ? 'bg-yellow-50 text-yellow-900 border border-yellow-200'
+                      : 'bg-yellow-300 text-gray-900 hover:bg-yellow-400'
+                  }`}
+                >
+                  {selectedPlans[selectedTask?.id] 
+                    ? `Gameplan: ${
+                        selectedPlans[selectedTask?.id] === 'urgent' ? 'Call - Urgent' :
+                        selectedPlans[selectedTask?.id] === 'flexible' ? 'Call - Flexible' :
+                        'Email'
+                      }`
+                    : 'Gameplan'
+                  }
+                </button>
+              </div>
+            ) : (
+              <div className={`max-w-[80%] rounded-lg p-4 shadow-sm ${
+                msg.role === 'user' 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-white'
+              }`}>
+                <p className="text-sm">{msg.content}</p>
+                <p className={`text-xs mt-1 ${msg.role === 'user' ? 'text-blue-100' : 'text-gray-400'}`}>
+                  {msg.timestamp}
+                </p>
+              </div>
+            )}
           </div>
         ))}
+
+        {/* Restaurant Options in Task Detail */}
+        {showRestaurantOptions && restaurantOptions && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-3 mt-4"
+          >
+            {restaurantOptions.map((restaurant, index) => (
+              <motion.button
+                key={index}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.1 }}
+                onClick={() => selectRestaurant(restaurant.name)}
+                className="w-full p-4 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-left shadow-sm"
+              >
+                <div className="font-semibold text-slate-900">{restaurant.name}</div>
+                <div className="text-sm text-slate-600 mt-1">{restaurant.cuisine}</div>
+                <div className="text-xs text-slate-400 mt-2">{restaurant.note}</div>
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
       </div>
 
       {/* Gameplan Popup */}
@@ -388,9 +558,9 @@ export default function App() {
               <div className="relative">
                 <button
                   onClick={() => {
-                    if (credits >= 6) {
+                    if (credits >= 6 && selectedTask) {
                       setCredits(credits - 6);
-                      setSelectedPlan('urgent');
+                      setSelectedPlans(prev => ({...prev, [selectedTask.id]: 'urgent'}));
                       setShowGameplan(false);
                       // Handle urgent call action
                     }
@@ -431,9 +601,9 @@ export default function App() {
               <div className="relative">
                 <button
                   onClick={() => {
-                    if (credits >= 2) {
+                    if (credits >= 2 && selectedTask) {
                       setCredits(credits - 2);
-                      setSelectedPlan('flexible');
+                      setSelectedPlans(prev => ({...prev, [selectedTask.id]: 'flexible'}));
                       setShowGameplan(false);
                       // Handle flexible call action
                     }
@@ -470,45 +640,49 @@ export default function App() {
                 )}
               </div>
 
-              {/* Email Option */}
-              <div className="relative">
-                <button
-                  onClick={() => {
-                    setSelectedPlan('email');
-                    setShowGameplan(false);
-                    // Handle email action
-                  }}
-                  className="w-full p-4 rounded-2xl bg-yellow-50 text-yellow-900 flex items-center justify-between hover:bg-yellow-100 transition-colors"
-                >
-                  <div className="text-left flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="font-semibold text-lg">Email</div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowTooltip(showTooltip === 'email' ? null : 'email');
-                        }}
-                        className="p-1 hover:bg-yellow-100 rounded-full transition-colors"
-                      >
-                        <Info className="h-4 w-4" />
-                      </button>
+              {/* Email Option - Only show for non-restaurant bookings */}
+              {currentTaskType !== 'restaurant_booking' && (
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      if (selectedTask) {
+                        setSelectedPlans(prev => ({...prev, [selectedTask.id]: 'email'}));
+                        setShowGameplan(false);
+                        // Handle email action
+                      }
+                    }}
+                    className="w-full p-4 rounded-2xl bg-yellow-50 text-yellow-900 flex items-center justify-between hover:bg-yellow-100 transition-colors"
+                  >
+                    <div className="text-left flex-1">
+                      <div className="flex items-center gap-2">
+                        <div className="font-semibold text-lg">Email</div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowTooltip(showTooltip === 'email' ? null : 'email');
+                          }}
+                          className="p-1 hover:bg-yellow-100 rounded-full transition-colors"
+                        >
+                          <Info className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <div className="text-sm">Send automated email</div>
                     </div>
-                    <div className="text-sm">Send automated email</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-bold text-lg text-green-600">Free</div>
-                  </div>
-                </button>
-                {showTooltip === 'email' && (
-                  <div className="absolute left-0 right-0 -top-20 mx-2 p-3 bg-gray-900 text-white text-sm rounded-lg z-10">
-                    <div className="relative">
-                      Our trusted AI assistant Billy will handle this entire email thread for you automatically.
-                      <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-gray-900"></div>
+                    <div className="text-right">
+                      <div className="font-bold text-lg text-green-600">Free</div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  </button>
+                  {showTooltip === 'email' && (
+                    <div className="absolute left-0 right-0 -top-20 mx-2 p-3 bg-gray-900 text-white text-sm rounded-lg z-10">
+                      <div className="relative">
+                        Our trusted AI assistant Billy will handle this entire email thread for you automatically.
+                        <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </motion.div>
         )}

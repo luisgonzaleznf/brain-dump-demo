@@ -76,14 +76,12 @@ app.post('/api/chat', async (req, res) => {
       state: 'active',
       icon: '🧠',
       priority: result.taskData.priority,
-      deadline: result.taskData.deadline
+      deadline: result.taskData.deadline,
+      taskType: result.taskData.taskType
     });
     
-    // Add task info to response
-    result.taskCreated = {
-      id: task.id,
-      title: task.title
-    };
+    // Add complete task info to response
+    result.taskCreated = task;
   }
   
   res.json({ 
@@ -93,7 +91,40 @@ app.post('/api/chat', async (req, res) => {
     stage: result.stage,
     taskCreated: result.taskCreated || null,
     taskType: result.taskType || null,
-    showGameplan: result.showGameplan || false
+    showGameplan: result.showGameplan || false,
+    showOptions: result.showOptions || false,
+    optionsDelay: result.optionsDelay || 0,
+    restaurantOptions: result.restaurantOptions || null
+  });
+});
+
+// Handle restaurant selection
+app.post('/api/select-restaurant', async (req, res) => {
+  const { sessionId, restaurantName } = req.body;
+  
+  if (!sessionId || !restaurantName) {
+    return res.status(400).json({ error: 'Session ID and restaurant name are required' });
+  }
+  
+  const result = scenarioManager.selectRestaurant(sessionId, restaurantName);
+  
+  // Find the restaurant booking task
+  let selectedTask = null;
+  if (result.showGameplan && result.taskType === 'restaurant_booking') {
+    const allTasks = taskManager.getAllTasks();
+    selectedTask = allTasks
+      .filter(task => task.taskType === 'restaurant_booking')
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
+  }
+  
+  res.json({
+    reply: result.reply,
+    sessionId: sessionId,
+    scenario: result.scenario,
+    stage: result.stage,
+    showGameplan: result.showGameplan || false,
+    taskType: result.taskType || null,
+    selectedTask: selectedTask
   });
 });
 
