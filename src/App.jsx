@@ -20,6 +20,8 @@ export default function App() {
   const [credits, setCredits] = useState(62);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showTooltip, setShowTooltip] = useState(null);
+  const [taskMessages, setTaskMessages] = useState([]);
+  const [taskInputText, setTaskInputText] = useState('');
   const recognitionRef = useRef(null);
   const chatListRef = useRef(null);
   const apiUrl = 'http://localhost:3001/api';
@@ -75,16 +77,40 @@ export default function App() {
     }
   };
 
-  const handleTaskClick = async (taskId) => {
-    try {
-      await fetch(`${apiUrl}/tasks/${taskId}/state`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: 'completed' })
-      });
-      await loadTasks();
-    } catch (error) {
-      console.error('Failed to update task:', error);
+  const handleTaskClick = (task) => {
+    setSelectedTask(task);
+    setCurrentScreen('taskDetail');
+  };
+
+  const sendTaskMessage = () => {
+    if (!taskInputText.trim()) return;
+    
+    const newMessage = {
+      id: Date.now(),
+      role: 'user',
+      content: taskInputText.trim(),
+      timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    };
+    
+    setTaskMessages(prev => [...prev, newMessage]);
+    setTaskInputText('');
+    
+    // Simulate a response after a short delay
+    setTimeout(() => {
+      const response = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: 'Got it! I\'ll help you with that.',
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      };
+      setTaskMessages(prev => [...prev, response]);
+    }, 1000);
+  };
+
+  const handleTaskInputKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendTaskMessage();
     }
   };
 
@@ -222,7 +248,7 @@ export default function App() {
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
       transition={{ duration: 0.3 }}
-      className="h-full flex flex-col bg-gray-50"
+      className="h-full flex flex-col bg-gray-50 relative"
     >
       {/* Header */}
       <div className="bg-white px-6 pt-6 pb-4 border-b border-gray-200">
@@ -261,7 +287,7 @@ export default function App() {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-6 overflow-y-auto">
         <div className="text-gray-400 text-sm mb-4">Today</div>
         
         {/* Early Access Message */}
@@ -279,7 +305,7 @@ export default function App() {
         </div>
 
         {/* Gameplan Button as separate bubble */}
-        <div className="bg-white rounded-lg p-4 shadow-sm">
+        <div className="bg-white rounded-lg p-4 shadow-sm mb-4">
           <button
             onClick={() => setShowGameplan(true)}
             className={`w-full px-6 py-3 rounded-xl font-semibold transition-all text-center ${
@@ -302,6 +328,22 @@ export default function App() {
             }
           </button>
         </div>
+
+        {/* Chat Messages */}
+        {taskMessages.map((msg) => (
+          <div key={msg.id} className={`mb-3 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[80%] rounded-lg p-4 shadow-sm ${
+              msg.role === 'user' 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-white'
+            }`}>
+              <p className="text-sm">{msg.content}</p>
+              <p className={`text-xs mt-1 ${msg.role === 'user' ? 'text-blue-100' : 'text-gray-400'}`}>
+                {msg.timestamp}
+              </p>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Gameplan Popup */}
@@ -464,21 +506,59 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Input area */}
-      <div className="bg-white border-t border-gray-200 p-4">
+      {/* Input area - Fixed position above navigation */}
+      <div className="absolute bottom-24 left-0 right-0 bg-white border-t border-gray-200 p-4 z-10">
         <div className="flex items-center gap-2">
           <input
             type="text"
+            value={taskInputText}
+            onChange={(e) => setTaskInputText(e.target.value)}
+            onKeyDown={handleTaskInputKeyDown}
             placeholder="What is it?"
-            className="flex-1 px-4 py-2 rounded-full bg-gray-100 outline-none"
+            className="flex-1 px-4 py-3 rounded-full bg-gray-100 outline-none text-gray-700 placeholder-gray-500"
           />
-          <button className="p-2">
+          <button 
+            onClick={sendTaskMessage}
+            className="p-2.5 rounded-full hover:bg-gray-100 transition-colors"
+          >
             <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
             </svg>
           </button>
         </div>
       </div>
+
+      {/* Bottom Navigation */}
+      <nav className="absolute bottom-0 left-0 right-0 border-t border-slate-200 bg-white/95 px-6 pb-8 pt-3 backdrop-blur">
+        <div className="flex items-center justify-between">
+          <button 
+            onClick={() => setCurrentScreen('home')}
+            className="rounded-2xl p-3"
+          >
+            <Home className="h-6 w-6 text-slate-900" />
+          </button>
+
+          <button 
+            className="p-3"
+            onClick={() => setCurrentScreen('mind')}
+          >
+            <Send className="h-6 w-6 text-slate-500" />
+          </button>
+
+          <button 
+            className="p-3"
+            onClick={() => setCurrentScreen('addTask')}
+          >
+            <ListChecks className="h-6 w-6 text-slate-500" />
+          </button>
+
+          <button className="grid h-9 w-9 place-items-center rounded-full bg-slate-200 text-[13px] font-bold text-slate-700">
+            LG
+          </button>
+        </div>
+
+        <div className="pointer-events-none mx-auto mt-4 h-1.5 w-28 rounded-full bg-slate-300" />
+      </nav>
     </motion.div>
   );
 
@@ -514,7 +594,7 @@ export default function App() {
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.35, delay: index * 0.1 }}
-                      onClick={() => handleTaskClick(task.id)}
+                      onClick={() => handleTaskClick(task)}
                       className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:shadow-md focus:outline-none"
                     >
                       <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-100">
