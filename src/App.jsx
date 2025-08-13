@@ -239,6 +239,14 @@ export default function App() {
     }
   };
 
+  const openBrainDump = () => {
+    // Clear chat context when opening brain dump
+    setMessages([]);
+    setInputText('');
+    setSessionId(null);
+    setCurrentScreen('mind');
+  };
+
   const activeTasks = tasks.filter(t => t.state === 'active');
 
   const renderTaskDetailScreen = () => (
@@ -583,7 +591,7 @@ export default function App() {
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ duration: 0.25, delay: 0.1 }}
-                onClick={() => setCurrentScreen('mind')}
+                onClick={openBrainDump}
                 className="absolute bottom-32 right-6 grid h-16 w-16 place-items-center rounded-full bg-black text-white shadow-xl"
                 aria-label="Add"
               >
